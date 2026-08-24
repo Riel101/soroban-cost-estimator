@@ -5,7 +5,7 @@
 //! command cross-references cached estimates to tell the user which ones
 //! are now stale due to network pricing changes.
 
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +32,16 @@ pub struct CachedEstimate {
     pub memory_bytes: u64,
     /// ISO-8601 timestamp of when the estimate was made.
     pub timestamp: String,
+}
+
+impl fmt::Display for CachedEstimate {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{} @ ledger {} on {}: {} stroops",
+            self.function, self.ledger, self.network, self.total_stroops
+        )
+    }
 }
 
 /// Returns the cache directory path, creating it if needed.

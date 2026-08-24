@@ -1,4 +1,5 @@
 use serde_json::Value;
+use std::fmt;
 
 use crate::error::{AppError, AppResult};
 
@@ -24,6 +25,12 @@ pub fn resolve_endpoint(network: &str, custom_url: Option<&str>) -> AppResult<St
 pub struct RpcClient {
     url: String,
     client: reqwest::Client,
+}
+
+impl fmt::Display for RpcClient {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "RPC client ({})", self.url)
+    }
 }
 
 impl RpcClient {

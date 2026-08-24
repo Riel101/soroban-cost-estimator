@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::{fmt, io::Cursor};
 use std::path::Path;
 
 use stellar_xdr::ReadXdr;
@@ -210,6 +210,12 @@ pub struct ParamInfo {
     pub type_name: String,
 }
 
+impl fmt::Display for ParamInfo {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}: {}", self.name, self.type_name)
+    }
+}
+
 /// Information about an exported function.
 #[derive(Debug, Clone)]
 pub struct FunctionInfo {
@@ -221,6 +227,12 @@ pub struct FunctionInfo {
     pub result_count: u32,
     /// Typed parameters from the contract spec, if the WASM has one.
     pub params: Vec<ParamInfo>,
+}
+
+impl fmt::Display for FunctionInfo {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&format_function(self))
+    }
 }
 
 /// Formats a function with its spec-derived signature, e.g. `increment(x: I64)`.
@@ -246,4 +258,14 @@ pub struct WasmInfo {
     pub functions: Vec<FunctionInfo>,
     /// Whether the WASM carries a Soroban contract spec (`contractspecv0`).
     pub has_spec: bool,
+}
+
+impl fmt::Display for WasmInfo {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "WASM with {} exported function(s), spec: {}",
+            self.functions.len(), self.has_spec
+        )
+    }
 }
