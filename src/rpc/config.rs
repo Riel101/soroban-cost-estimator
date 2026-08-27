@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use anyhow::{anyhow, Context};
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::rpc::client::RpcClient;
 
 /// Well-known `ConfigSettingID` values used by Soroban.
@@ -61,7 +62,7 @@ impl ConfigSettingId {
 
         let xdr_bytes = key
             .to_xdr(stellar_xdr::Limits::none())
-            .map_err(|e| crate::error::AppError::XdrEncode(format!("LedgerKey XDR: {e}")))?;
+            .context("XDR encode error: LedgerKey XDR")?;
 
         Ok(base64::Engine::encode(
             &base64::engine::general_purpose::STANDARD,
@@ -135,7 +136,7 @@ pub async fn fetch_config_setting(
         .entries
         .into_iter()
         .next()
-        .ok_or_else(|| AppError::ConfigSettingNotFound(setting_id.human_name().to_string()))?;
+        .ok_or_else(|| anyhow!("Config setting not found: {}", setting_id.human_name()))?;
 
     Ok(ConfigSettingEntryRaw {
         id: setting_id,
@@ -198,7 +199,7 @@ pub async fn fetch_all_config_settings(
             raw.id = *id;
             results.push(raw);
         } else {
-            return Err(AppError::ConfigSettingNotFound(id.human_name().to_string()));
+            return Err(anyhow!("Config setting not found: {}", id.human_name()));
         }
     }
 

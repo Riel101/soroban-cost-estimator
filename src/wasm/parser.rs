@@ -1,9 +1,10 @@
 use std::io::Cursor;
 use std::path::Path;
 
+use anyhow::{anyhow, Context};
 use stellar_xdr::ReadXdr;
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 
 /// Loads a compiled Soroban contract `.wasm` file from disk.
 ///
@@ -15,7 +16,8 @@ use crate::error::{AppError, AppResult};
 /// # Network calls
 /// None — pure file I/O + parsing.
 pub fn load_wasm(path: &Path) -> AppResult<WasmInfo> {
-    let bytes = std::fs::read(path).map_err(|e| AppError::Io(e))?;
+    let bytes = std::fs::read(path)
+        .with_context(|| format!("failed to read WASM file {}", path.display()))?;
 
     validate_wasm(&bytes)?;
     let functions = enumerate_functions(&bytes)?;
@@ -48,7 +50,7 @@ pub fn load_wasm(path: &Path) -> AppResult<WasmInfo> {
 
 /// Basic structural validation of a WASM binary.
 fn validate_wasm(bytes: &[u8]) -> AppResult<()> {
-    wasmparser::validate(bytes).map_err(|e| AppError::WasmValidation(e.to_string()))?;
+    wasmparser::validate(bytes).map_err(|e| anyhow!("WASM validation error: {e}"))?;
     Ok(())
 }
 
@@ -61,11 +63,11 @@ fn enumerate_functions(bytes: &[u8]) -> AppResult<Vec<FunctionInfo>> {
     let mut type_infos: Vec<(u32, u32)> = Vec::new();
 
     for payload in wasmparser::Parser::new(0).parse_all(bytes) {
-        let payload = payload.map_err(|e| AppError::WasmParse(e.to_string()))?;
+        let payload = payload.map_err(|e| anyhow!("WASM parse error: {e}"))?;
         match payload {
             wasmparser::Payload::TypeSection(section) => {
                 for rec_group in section {
-                    let rec_group = rec_group.map_err(|e| AppError::WasmParse(e.to_string()))?;
+                    let rec_group = rec_group.map_err(|e| anyhow!("WASM parse error: {e}"))?;
                     for ty in rec_group.types() {
                         let func_type = ty.unwrap_func();
                         type_infos.push((
@@ -77,13 +79,13 @@ fn enumerate_functions(bytes: &[u8]) -> AppResult<Vec<FunctionInfo>> {
             }
             wasmparser::Payload::FunctionSection(section) => {
                 for func in section {
-                    let func = func.map_err(|e| AppError::WasmParse(e.to_string()))?;
+                    let func = func.map_err(|e| anyhow!("WASM parse error: {e}"))?;
                     func_to_type.push(func);
                 }
             }
             wasmparser::Payload::ExportSection(section) => {
                 for export in section {
-                    let export = export.map_err(|e| AppError::WasmParse(e.to_string()))?;
+                    let export = export.map_err(|e| anyhow!("WASM parse error: {e}"))?;
                     if matches!(export.kind, wasmparser::ExternalKind::Func) {
                         let idx = export.index as usize;
                         let (param_count, result_count) = func_to_type
@@ -104,9 +106,7 @@ fn enumerate_functions(bytes: &[u8]) -> AppResult<Vec<FunctionInfo>> {
     }
 
     if functions.is_empty() {
-        return Err(AppError::WasmParse(
-            "no exported functions found in WASM binary".to_string(),
-        ));
+        return Err(anyhow!("WASM parse error: no exported functions found in WASM binary"));
     }
 
     Ok(functions)
@@ -131,7 +131,7 @@ fn parse_contract_spec(bytes: &[u8]) -> AppResult<(SpecFunctions, bool)> {
     let mut has_spec = false;
 
     for payload in wasmparser::Parser::new(0).parse_all(bytes) {
-        let payload = payload.map_err(|e| AppError::WasmParse(e.to_string()))?;
+        let payload = payload.map_err(|e| anyhow!("WASM parse error: {e}"))?;
         if let wasmparser::Payload::CustomSection(section) = payload {
             if section.name() != "contractspecv0" {
                 continue;

@@ -7,9 +7,10 @@
 
 use std::path::PathBuf;
 
+use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 
 /// A cached estimate result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,8 +37,7 @@ pub struct CachedEstimate {
 
 /// Returns the cache directory path, creating it if needed.
 fn cache_dir() -> AppResult<PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| AppError::General("could not determine home directory".to_string()))?;
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("could not determine home directory"))?;
     let dir = home.join(".soroban-cost-estimator").join("cache");
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
@@ -120,8 +120,8 @@ pub fn load_estimate(
     }
 
     let content = std::fs::read_to_string(&path)?;
-    let cached: CachedEstimate =
-        serde_json::from_str(&content).map_err(|e| AppError::SnapshotParse(e.to_string()))?;
+    let cached: CachedEstimate = serde_json::from_str(&content)
+        .context("failed to parse cached estimate")?;
     Ok(Some(cached))
 }
 

@@ -1,4 +1,5 @@
 use clap::Parser;
+use anyhow::anyhow;
 use soroban_cost_estimator::cache;
 use soroban_cost_estimator::cli;
 use soroban_cost_estimator::config_snapshot;
@@ -232,8 +233,8 @@ async fn cmd_estimate(
     // schema drift), not a free transaction. Fail loudly instead of silently
     // printing an all-zero report.
     if missing_simulation_data(&response) {
-        return Err(error::AppError::SimulationFailed(
-            "simulation returned no cost data and no latest ledger — check --id, --fn, and the RPC endpoint".to_string(),
+        return Err(anyhow!(
+            "simulation returned no cost data and no latest ledger — check --id, --fn, and the RPC endpoint"
         ));
     }
 

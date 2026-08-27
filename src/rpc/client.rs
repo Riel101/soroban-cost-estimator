@@ -1,6 +1,7 @@
 use serde_json::Value;
+use anyhow::{anyhow, Context};
 
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 
 /// Resolves a network name to its well-known Soroban RPC endpoint.
 ///
@@ -15,7 +16,7 @@ pub fn resolve_endpoint(network: &str, custom_url: Option<&str>) -> AppResult<St
         "testnet" => Ok("https://soroban-testnet.stellar.org".to_string()),
         "mainnet" => Ok("https://soroban.stellar.org".to_string()),
         "futurenet" => Ok("https://rpc-futurenet.stellar.org".to_string()),
-        other => Err(AppError::UnknownNetwork(other.to_string())),
+        other => Err(anyhow!("RPC endpoint not configured for network: {other}")),
     }
 }
 
@@ -51,10 +52,19 @@ impl RpcClient {
             "params": params,
         });
 
-        let response = self.client.post(&self.url).json(&body).send().await?;
+        let response = self
+            .client
+            .post(&self.url)
+            .json(&body)
+            .send()
+            .await
+            .with_context(|| format!("RPC request failed for method {method}"))?;
 
         let status = response.status();
-        let response_body: Value = response.json().await?;
+        let response_body: Value = response
+            .json()
+            .await
+            .context("failed to decode RPC response as JSON")?;
         if std::env::var("SCE_DEBUG_RPC").is_ok() {
             eprintln!(
                 "[rpc-debug] {method}: {}",
@@ -70,19 +80,18 @@ impl RpcClient {
                 .and_then(|m| m.as_str())
                 .unwrap_or("unknown error")
                 .to_string();
-            return Err(AppError::Rpc {
-                status: code,
-                message,
-            });
+            return Err(anyhow!("RPC error (status {code}): {message}"));
         }
 
         // Extract the `result` field
-        let result = response_body.get("result").ok_or_else(|| AppError::Rpc {
-            status: status.as_u16() as i64,
-            message: "response missing 'result' field".to_string(),
+        let result = response_body.get("result").ok_or_else(|| {
+            anyhow!(
+                "RPC error (status {}): response missing 'result' field",
+                status.as_u16()
+            )
         })?;
 
         serde_json::from_value(result.clone())
-            .map_err(|e| AppError::General(format!("failed to deserialize RPC response: {e}")))
+            .context("failed to deserialize RPC response")
     }
 }
