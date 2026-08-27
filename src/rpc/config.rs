@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use tracing::{debug, trace};
 
 use crate::error::{AppError, AppResult};
 use crate::rpc::client::RpcClient;
@@ -157,6 +157,7 @@ pub async fn fetch_config_setting(
     setting_id: ConfigSettingId,
 ) -> AppResult<ConfigSettingEntryRaw> {
     let key_b64 = setting_id.ledger_key_b64()?;
+    debug!(setting = setting_id.human_name(), "fetching config setting");
 
     let params = GetLedgerEntriesParams {
         keys: vec![key_b64],
@@ -172,6 +173,11 @@ pub async fn fetch_config_setting(
         .next()
         .ok_or_else(|| AppError::ConfigSettingNotFound(setting_id.human_name().to_string()))?;
 
+    trace!(
+        setting = setting_id.human_name(),
+        last_modified = entry.last_modified_ledger_seq,
+        "config setting fetched"
+    );
     Ok(ConfigSettingEntryRaw {
         id: setting_id,
         config_xdr: entry.xdr,
@@ -190,6 +196,7 @@ pub async fn fetch_config_setting(
 pub async fn fetch_all_config_settings(
     client: &RpcClient,
 ) -> AppResult<Vec<ConfigSettingEntryRaw>> {
+    debug!("fetching all config settings (batched)");
     let ids = [
         ConfigSettingId::ContractComputeV0,
         ConfigSettingId::ContractLedgerCostV0,
@@ -237,6 +244,7 @@ pub async fn fetch_all_config_settings(
         }
     }
 
+    debug!(count = results.len(), "all config settings fetched");
     Ok(results)
 }
 
