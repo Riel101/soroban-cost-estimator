@@ -13,6 +13,13 @@ pub struct FeeBreakdown {
     pub non_refundable_stroops: i64,
     /// Refundable resource fee (refunded if not fully consumed).
     pub refundable_stroops: i64,
+    /// CPU instruction fee (subset of non-refundable).
+    pub cpu_fee_stroops: i64,
+    /// Storage I/O fee — read entries + write entries + disk read bytes
+    /// (subset of non-refundable).
+    pub storage_fee_stroops: i64,
+    /// Transaction size / bandwidth fee (subset of non-refundable).
+    pub bandwidth_fee_stroops: i64,
     /// Total resource fee.
     pub total_stroops: i64,
     /// Total fee in XLM (as a string to avoid float precision issues).
@@ -68,6 +75,7 @@ pub struct FeeRates {
 ///
 /// # Network calls
 /// None — pure computation.
+#[must_use]
 pub fn compute_fee_breakdown(
     total_resource_fee: i64,
     cpu_insns: u64,
@@ -123,9 +131,17 @@ pub fn compute_fee_breakdown(
 
     let total_xlm = stroops_to_xlm(total_resource_fee);
 
+    // Combined storage I/O fee for the report breakdown.
+    let storage_fee = read_entry_fee
+        .saturating_add(write_entry_fee)
+        .saturating_add(read_bytes_fee);
+
     FeeBreakdown {
         non_refundable_stroops: non_refundable,
         refundable_stroops: refundable,
+        cpu_fee_stroops: cpu_fee,
+        storage_fee_stroops: storage_fee,
+        bandwidth_fee_stroops: bandwidth_fee,
         total_stroops: total_resource_fee,
         total_xlm,
     }
@@ -135,6 +151,7 @@ pub fn compute_fee_breakdown(
 ///
 /// Returns a string to avoid floating-point precision issues.
 /// Example: 1234567 stroops → "0.1234567"
+#[must_use]
 pub fn stroops_to_xlm(stroops: i64) -> String {
     let abs = stroops.unsigned_abs();
     let whole = abs / 10_000_000;

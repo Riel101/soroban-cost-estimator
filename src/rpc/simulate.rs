@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use stellar_xdr::ReadXdr;
-use anyhow::{anyhow, Context};
+use tracing::{debug, trace};
 
 use crate::error::AppResult;
 use crate::rpc::client::RpcClient;
@@ -114,6 +114,7 @@ pub async fn simulate_transaction(
     client: &RpcClient,
     transaction_xdr: &str,
 ) -> AppResult<SimulateTransactionResponse> {
+    debug!("calling simulateTransaction");
     let params = SimulateTransactionParams {
         transaction: transaction_xdr.to_string(),
         resource_config: None,
@@ -124,9 +125,16 @@ pub async fn simulate_transaction(
         .await?;
 
     if let Some(ref error) = response.error {
-        return Err(anyhow!("Simulation failed: {error}"));
+        debug!(error, "simulation returned error");
+        return Err(AppError::SimulationFailed(error.clone()));
     }
 
+    trace!(
+        has_cost = response.cost.is_some(),
+        has_transaction_data = response.transaction_data.is_some(),
+        latest_ledger = ?response.latest_ledger,
+        "simulateTransaction succeeded"
+    );
     Ok(response)
 }
 
